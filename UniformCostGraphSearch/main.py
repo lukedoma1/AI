@@ -215,3 +215,5 @@ if result2:
     print(f"Nodes expanded: {result2['nodes_expanded']}")
     print(f"Nodes generated: {result2['nodes_generated']}")
     print(f"CPU time: {result2['cpu_time']} seconds")
+
+input("Press Enter to exit...")
