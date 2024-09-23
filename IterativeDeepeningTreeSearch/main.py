@@ -1,13 +1,12 @@
 import time
 
-# Node class representing each state in the search tree
 class Node:
     def __init__(self, vacuum_pos, dirty_squares, parent=None, action=None, path_cost=0, depth=0):
-        self.vacuum_pos = vacuum_pos  # (x, y) position of the vacuum
-        self.dirty_squares = set(dirty_squares)  # Remaining dirty squares
-        self.parent = parent  # Parent node
-        self.action = action  # Action taken to reach this node
-        self.path_cost = path_cost  # Total path cost accumulated so far
+        self.vacuum_pos = vacuum_pos  # Position x,y
+        self.dirty_squares = set(dirty_squares)  # Set of dirty squares left
+        self.parent = parent  # Previous node
+        self.action = action  # Action to get to the node
+        self.path_cost = path_cost  # Path cost to this node
         self.depth = depth  # Depth to search
 
 # Runs limited DFS with increasing depth
@@ -50,7 +49,7 @@ def depth_limited_search(start_pos, dirty_squares, depth_limit, expanded_nodes):
 
         # If no dirty squares left, return the path. Success!
         if not current_node.dirty_squares:
-            solution_path = reconstruct_path(current_node)
+            solution_path = find_solution_path(current_node)
             return solution_path, total_nodes_expanded, total_nodes_generated, current_node.path_cost
 
         # Expand the current node if within the depth limit
@@ -69,70 +68,71 @@ def depth_limited_search(start_pos, dirty_squares, depth_limit, expanded_nodes):
 
     return None, total_nodes_expanded, total_nodes_generated, 0  # Return None if no solution is found
 
-# Helper function to expand nodes and generate successors
+# Generate successors by expanding the current node.
 def expand(node):
-    successors = []
     x, y = node.vacuum_pos
     dirty_squares = node.dirty_squares
 
-    # Define possible actions and their costs
     actions = {
-        'UP': ((x-1, y), 0.8),
-        'DOWN': ((x+1, y), 0.7),
-        'LEFT': ((x, y-1), 1),
-        'RIGHT': ((x, y+1), 0.9),
+        'UP': ((x - 1, y), 0.8),
+        'DOWN': ((x + 1, y), 0.7),
+        'LEFT': ((x, y - 1), 1),
+        'RIGHT': ((x, y + 1), 0.9),
         'SUCK': (node.vacuum_pos, 0.6)
     }
 
-    # Generate valid moves (ensure vacuum doesn't move out of bounds)
-    for action, (new_pos, cost) in actions.items():
-        new_x, new_y = new_pos
-        # Check bounds (stay within the 4x5 grid)
-        if action != 'SUCK' and (1 <= new_x <= 4 and 1 <= new_y <= 5):
-            # Move to a valid position within the grid
-            successors.append((action, (new_pos, dirty_squares), cost))
-        elif action == 'SUCK' and node.vacuum_pos in dirty_squares:
-            # Remove the dirty square if 'SUCK' is performed
-            new_dirty_squares = dirty_squares - {node.vacuum_pos}
-            successors.append((action, (new_pos, new_dirty_squares), cost))
+    # Check for valid moves
+    valid_moves = [
+        (action, (new_pos, dirty_squares), cost) for action, (new_pos, cost) in actions.items()
+        if (action != 'SUCK' and 1 <= new_pos[0] <= 4 and 1 <= new_pos[1] <= 5)
+        or (action == 'SUCK' and node.vacuum_pos in dirty_squares)
+    ]
 
-    return successors
+    if 'SUCK' in [move[0] for move in valid_moves]:
+        # Perform 'SUCK' action, getting rid of the dirty square
+        valid_moves = [
+            (action, (new_pos, dirty_squares - {node.vacuum_pos}) if action == 'SUCK' else (new_pos, dirty_squares), cost)
+            for action, (new_pos, dirty_squares), cost in valid_moves
+        ]
 
-# Helper function to reconstruct the solution path from the goal node
-def reconstruct_path(node):
-    path = []
+    return valid_moves
+
+
+# Helps to find the solution path from the goal node
+def find_solution_path(node):
+    path = []  # Use a list and insert steps in reverse order while traversing
     while node:
         if node.action:
-            path.append((node.action, node.vacuum_pos, node.path_cost))  # Include path cost in each step
+            path.insert(0, (node.action, node.vacuum_pos, node.path_cost))
         node = node.parent
-    return path[::-1]  # Return reversed path (from start to goal)
+    return path
+
 
 # Function to run a test case
 def run_test_case(start_pos, dirty_squares):
-    print(f"Testing with initial vacuum position {start_pos} and dirty squares {dirty_squares}")
-    result = iterative_deepening_tree_search(start_pos, dirty_squares)
+    print(f"Starting Test with Vacuum at {start_pos} and Dirty Squares at {dirty_squares}")
+    solution, total_time, total_nodes_expanded, total_nodes_generated, expanded_nodes, total_path_cost = iterative_deepening_tree_search(start_pos, dirty_squares)
 
-    if result[0]:
-        solution, total_time, total_nodes_expanded, total_nodes_generated, expanded_nodes, total_path_cost = result
+    if solution:
+        # Displaying expanded node details
+        print(f"Nodes Expanded: {total_nodes_expanded}, Nodes Generated: {total_nodes_generated}")
+        print(f"Execution Time: {total_time:.3f} seconds")
         
-        # Print the states of the first 5 expanded nodes
-        print("First 5 expanded nodes (states):")
-        for i, (vacuum_pos, dirty_squares) in enumerate(expanded_nodes[:5]):
-            print(f"Node {i + 1}: Vacuum position {vacuum_pos}, Dirty squares {dirty_squares}")
+        # Showing details for first few expanded nodes
+        print("\nInitial Expanded Nodes:")
+        for idx, (vacuum_pos, dirty_squares) in enumerate(expanded_nodes[:5], start=1):
+            print(f"  {idx}: Vacuum at {vacuum_pos}, Remaining Dirt: {dirty_squares}")
 
-        print(f"\nTotal nodes expanded: {total_nodes_expanded}")
-        print(f"Total nodes generated: {total_nodes_generated}")
-        print(f"Total CPU execution time: {total_time:.2f} seconds")
+        # Printing the solution path with formatting for each step
+        print("\nSolution Path:")
+        for i, (action, pos, cost) in enumerate(solution, start=1):
+            print(f"  Step {i}: Action: {action}, Position: {pos}, Cumulative Cost: {cost:.2f}")
 
-        # Print the solution path
-        print("Solution path:")
-        for step in solution:
-            print(f"Action: {step[0]}, Vacuum position: {step[1]}, Path cost: {step[2]:.2f}")
-        print(f"Number of moves: {len(solution)}")
-        print(f"Total cost of solution: {total_path_cost:.2f}")  # Output the total path cost at the end
+        print(f"Total Moves: {len(solution)}, Total Cost: {total_path_cost:.2f}")
     else:
-        print("No solution found.")
-    print("=" * 50)
+        print("No solution was found.")
+    print("-" * 60)
+
 
 # Test Case 1: Initial agent location (2, 2) and dirty squares (1, 2), (2, 4), (3, 5)
 run_test_case(start_pos=(2, 2), dirty_squares={(1, 2), (2, 4), (3, 5)})
